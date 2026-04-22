@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RupeeSave — Daily Savings Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #09090e;
+  --bg2:       #0f0f16;
+  --bg3:       #141420;
+  --surface:   rgba(255,255,255,0.03);
+  --surface2:  rgba(255,255,255,0.055);
+  --gold:      #c9a96e;
+  --gold2:     #e8c98a;
+  --gold-dim:  rgba(201,169,110,0.18);
+  --gold-line: rgba(201,169,110,0.15);
+  --green:     #5db897;
+  --red:       #d96060;
+  --ink:       #f0ead8;
+  --ink2:      rgba(240,234,216,0.6);
+  --ink3:      rgba(240,234,216,0.3);
+  --border:    rgba(201,169,110,0.14);
+  --border2:   rgba(255,255,255,0.06);
+  --radius:    3px;
+  --radius-lg: 8px;
+  --mono:      'DM Mono', monospace;
+  --serif:     'Cormorant Garamond', Georgia, serif;
+  --sans:      'Outfit', sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--gold-line); border-radius: 2px; }
+
+/* ─── NOISE OVERLAY ─── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  opacity: 0.35;
+}
+
+/* ─── GRID BG ─── */
+.grid-bg {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(201,169,110,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201,169,110,0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* ─── PAGE WRAPPER ─── */
+#app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+/* ════════════════════════════════
+   AUTH SCREEN
+════════════════════════════════ */
+.auth-screen {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 2rem; min-height: 100vh;
+  animation: fadeUp 0.5s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.auth-panel {
+  width: 100%; max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2.5rem 2rem;
+  box-shadow: 0 0 100px rgba(201,169,110,0.07), 0 40px 80px rgba(0,0,0,0.5);
+  position: relative; overflow: hidden;
+}
+
+.auth-panel::before {
+  content: '₹';
+  font-family: var(--serif);
+  font-size: 180px;
+  color: rgba(201,169,110,0.04);
+  position: absolute; right: -20px; top: -30px;
+  line-height: 1; pointer-events: none; user-select: none;
+}
+
+.brand {
+  text-align: center; margin-bottom: 2rem;
+}
+.brand-name {
+  font-family: var(--serif);
+  font-size: 2.2rem; font-weight: 400;
+  color: var(--ink); letter-spacing: 0.04em;
+}
+.brand-name span { color: var(--gold); font-style: italic; }
+.brand-tag {
+  font-family: var(--mono);
+  font-size: 10px; letter-spacing: 0.3em;
+  text-transform: uppercase; color: var(--ink3);
+  margin-top: 4px;
+}
+
+.tab-row {
+  display: flex; margin-bottom: 1.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  flex: 1; background: none; border: none; cursor: pointer;
+  padding: 0.6rem; font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  margin-bottom: -1px; transition: color 0.2s;
+}
+.tab.on  { color: var(--gold); border-bottom: 1.5px solid var(--gold); }
+.tab.off { color: var(--ink3); border-bottom: 1.5px solid transparent; }
+
+.field { margin-bottom: 1rem; }
+.field-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 5px;
+}
+.field-head label {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink3);
+}
+.peek-btn {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+  color: var(--gold); background: none; border: none; cursor: pointer;
+}
+.field input {
+  width: 100%;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(201,169,110,0.16);
+  border-radius: var(--radius);
+  padding: 0.72rem 0.9rem;
+  color: var(--ink); font-size: 14px; font-family: var(--sans);
+  outline: none; transition: border-color 0.2s, background 0.2s;
+}
+.field input:focus {
+  border-color: rgba(201,169,110,0.5);
+  background: rgba(201,169,110,0.04);
+}
+.field input::placeholder { color: var(--ink3); }
+
+.cta {
+  width: 100%; padding: 0.82rem; margin-top: 0.5rem;
+  background: linear-gradient(135deg, #c9a96e 0%, #a8834a 100%);
+  border: none; border-radius: var(--radius);
+  color: #0a0a0f; cursor: pointer;
+  font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.3em; text-transform: uppercase;
+  font-weight: 500; transition: opacity 0.2s, transform 0.1s;
+}
+.cta:hover  { opacity: 0.88; }
+.cta:active { transform: scale(0.99); }
+
+.alt-link {
+  text-align: center; margin-top: 1rem;
+  font-size: 12px; color: var(--ink3);
+}
+.alt-link a { color: var(--gold); cursor: pointer; text-decoration: none; }
+
+.flash {
+  border-radius: var(--radius); padding: 0.6rem 0.9rem;
+  font-size: 12px; margin-bottom: 1rem;
+  font-family: var(--sans);
+}
+.flash.err { background: rgba(217,96,96,0.1); border: 1px solid rgba(217,96,96,0.25); color: #f09090; }
+.flash.ok  { background: rgba(93,184,151,0.1); border: 1px solid rgba(93,184,151,0.25); color: #80d4b4; }
+
+/* ════════════════════════════════
+   DASHBOARD
+════════════════════════════════ */
+.dashboard { flex: 1; display: flex; flex-direction: column; animation: fadeUp 0.4s ease both; }
+
+/* ── TOPBAR ── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 2rem;
+  background: rgba(9,9,14,0.92);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 50;
+  backdrop-filter: blur(12px);
+}
+.topbar-brand {
+  display: flex; align-items: baseline; gap: 10px;
+}
+.topbar-logo {
+  font-family: var(--serif); font-size: 1.4rem; font-weight: 400;
+  color: var(--ink); letter-spacing: 0.03em;
+}
+.topbar-logo span { color: var(--gold); font-style: italic; }
+.topbar-sep { width: 1px; height: 18px; background: var(--border); }
+.topbar-user {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ink3); letter-spacing: 0.08em;
+}
+.topbar-actions { display: flex; align-items: center; gap: 12px; }
+.saved-badge {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+  color: var(--green); opacity: 0;
+  transition: opacity 0.35s;
+  display: flex; align-items: center; gap: 4px;
+}
+.saved-badge.show { opacity: 1; }
+.saved-badge::before { content: '●'; font-size: 7px; }
+.signout-btn {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase; background: none;
+  border: 1px solid rgba(217,96,96,0.25);
+  color: rgba(217,96,96,0.7); cursor: pointer;
+  border-radius: var(--radius); padding: 0.45rem 0.9rem;
+  transition: all 0.2s;
+}
+.signout-btn:hover {
+  background: rgba(217,96,96,0.08);
+  border-color: rgba(217,96,96,0.45);
+  color: #f09090;
+}
+
+/* ── MAIN CONTENT ── */
+.main {
+  max-width: 920px; margin: 0 auto;
+  padding: 2.5rem 1.5rem 5rem;
+  width: 100%;
+}
+
+/* ── HERO ROW ── */
+.hero-row {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  margin-bottom: 2.5rem; gap: 1rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.hero-greeting {
+  font-family: var(--serif);
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-weight: 400; line-height: 1.15;
+  color: var(--ink);
+}
+.hero-greeting em { color: var(--gold); font-style: italic; }
+.hero-date {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ink3); letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+/* ── METRIC CARDS ── */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 2.5rem;
+}
+.metric {
+  background: var(--bg2);
+  padding: 1.25rem 1.4rem;
+  position: relative; overflow: hidden;
+  transition: background 0.2s;
+}
+.metric:hover { background: var(--bg3); }
+.metric::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 2px; opacity: 0;
+  transition: opacity 0.2s;
+}
+.metric:nth-child(1)::after { background: var(--gold); }
+.metric:nth-child(2)::after { background: var(--ink3); }
+.metric:nth-child(3)::after { background: var(--green); }
+.metric:hover::after { opacity: 1; }
+
+.metric-lbl {
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--ink3); margin-bottom: 8px;
+}
+.metric-val {
+  font-family: var(--serif); font-size: 2rem;
+  font-weight: 400; line-height: 1;
+  color: var(--ink);
+}
+.metric-val.c-gold  { color: var(--gold); }
+.metric-val.c-green { color: var(--green); }
+.metric-sub {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--ink3); margin-top: 4px;
+}
+
+/* ── SECTION HEADER ── */
+.sec-hd {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 1rem;
+}
+.sec-hd-label {
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.25em; text-transform: uppercase;
+  color: rgba(201,169,110,0.45);
+  white-space: nowrap;
+}
+.sec-hd-line { flex: 1; height: 1px; background: var(--border); }
+
+/* ── ENTRY TABLE ── */
+.entry-wrap { margin-bottom: 2.5rem; }
+.entry-thead {
+  display: grid;
+  grid-template-columns: 1fr 150px 32px;
+  gap: 8px; padding: 0 0 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+.entry-thead span {
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  color: rgba(201,169,110,0.35);
+}
+.entry-thead span:nth-child(2) { text-align: right; }
+
+.entry-row {
+  display: grid;
+  grid-template-columns: 1fr 150px 32px;
+  gap: 8px; align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.035);
+  animation: rowIn 0.18s ease both;
+}
+@keyframes rowIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.entry-row input {
+  background: transparent; border: none;
+  padding: 6px 8px; color: var(--ink);
+  font-size: 14px; font-family: var(--sans);
+  outline: none; border-radius: var(--radius);
+  width: 100%; transition: background 0.15s;
+}
+.entry-row input::placeholder { color: var(--ink3); }
+.entry-row input:focus {
+  background: rgba(201,169,110,0.06);
+  box-shadow: 0 0 0 1px rgba(201,169,110,0.25);
+}
+.entry-row input[type=number] {
+  font-family: var(--mono); font-size: 14px; text-align: right;
+}
+.del-btn {
+  width: 28px; height: 28px;
+  background: none;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--ink3); cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; flex-shrink: 0;
+}
+.del-btn:hover {
+  background: rgba(217,96,96,0.12);
+  border-color: rgba(217,96,96,0.35);
+  color: #f09090;
+}
+
+.add-btn {
+  margin-top: 8px; width: 100%;
+  background: none;
+  border: 1px dashed rgba(201,169,110,0.18);
+  border-radius: var(--radius);
+  padding: 8px; color: rgba(201,169,110,0.45);
+  cursor: pointer; font-family: var(--mono);
+  font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  transition: all 0.15s;
+}
+.add-btn:hover {
+  border-color: rgba(201,169,110,0.45);
+  color: var(--gold);
+  background: var(--gold-dim);
+}
+
+/* ── CHART CARDS ── */
+.chart-grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+.chart-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+}
+.chart-card-title {
+  font-family: var(--serif); font-size: 1.15rem;
+  color: var(--ink); font-weight: 400; margin-bottom: 2px;
+}
+.chart-card-sub {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--ink3); letter-spacing: 0.1em;
+  margin-bottom: 1.2rem;
+}
+.chart-wrap { position: relative; width: 100%; height: 270px; }
+
+/* ── FOOTER ── */
+.footer {
+  text-align: center; padding: 1.5rem;
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.12em; color: var(--ink3);
+  border-top: 1px solid var(--border);
+  position: relative; z-index: 1;
+}
+
+/* ── LOADING ── */
+.loading {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; background: var(--bg);
+  font-family: var(--mono); font-size: 13px;
+  letter-spacing: 0.25em; color: rgba(201,169,110,0.5);
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 600px) {
+  .metrics { grid-template-columns: 1fr; }
+  .metric-val { font-size: 1.6rem; }
+  .topbar { padding: 0.9rem 1rem; }
+  .main { padding: 1.5rem 1rem 4rem; }
+  .hero-row { flex-direction: column; align-items: flex-start; }
+  .topbar-sep, .topbar-user { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+<div id="app">
+  <div class="loading">initialising…</div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════
+   STORAGE HELPERS
+═══════════════════════════════════════════ */
+const USERS_KEY   = 'rs_users_v3';
+const SESSION_KEY = 'rs_session_v3';
+const rowsKey = e => 'rs_rows_v3_' + e.replace(/[^a-z0-9]/gi,'_');
+
+// localStorage-based persistence (works without window.storage)
+const store = {
+  get(k)    { try { const v=localStorage.getItem(k); return v?JSON.parse(v):null; } catch{return null;} },
+  set(k,v)  { try { localStorage.setItem(k,JSON.stringify(v)); return true; } catch{return false;} },
+  del(k)    { try { localStorage.removeItem(k); } catch{} },
+};
+
+// Also try window.storage if available (Claude artifact env)
+const persist = {
+  async get(k)   {
+    try { if(window.storage){const r=await window.storage.get(k);return r?JSON.parse(r.value):null;} } catch{}
+    return store.get(k);
+  },
+  async set(k,v) {
+    store.set(k,v);
+    try { if(window.storage) await window.storage.set(k,JSON.stringify(v)); } catch{}
+    return true;
+  },
+  async del(k)   {
+    store.del(k);
+    try { if(window.storage) await window.storage.delete(k); } catch{}
+  }
+};
+
+/* ═══════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════ */
+const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
+const el  = (tag, attrs={}, ...children) => {
+  const e = document.createElement(tag);
+  Object.entries(attrs).forEach(([k,v]) => {
+    if (k==='class') e.className=v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), v);
+    else e.setAttribute(k,v);
+  });
+  children.flat().forEach(c => c!=null && e.append(typeof c==='string'?document.createTextNode(c):c));
+  return e;
+};
+const html = (parent, ...nodes) => { parent.innerHTML=''; nodes.flat().forEach(n=>n&&parent.append(n)); };
+
+const DEFAULT_ROWS = [
+  {label:'Day 1',amount:200},{label:'Day 2',amount:350},
+  {label:'Day 3',amount:150},{label:'Day 4',amount:500},{label:'Day 5',amount:300}
+];
+
+/* ═══════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════ */
+let STATE = {
+  view: 'loading',   // 'loading' | 'auth' | 'dashboard'
+  authTab: 'login',
+  session: null,
+  users: {},
+  rows: null,        // null until loaded
+  showPass: false,
+  error: '',
+  success: '',
+  savedFlash: false,
+  saveTimer: null,
+  chartBar: null,
+  chartLine: null,
+};
+
+const app = document.getElementById('app');
+
+function render() {
+  if (STATE.view === 'loading') {
+    html(app, el('div',{class:'loading'},'initialising…'));
+    return;
+  }
+  if (STATE.view === 'auth') { renderAuth(); return; }
+  if (STATE.view === 'dashboard') { renderDashboard(); return; }
+}
+
+/* ═══════════════════════════════════════════
+   AUTH VIEW
+═══════════════════════════════════════════ */
+function renderAuth() {
+  const t = STATE.authTab;
+
+  const switchTab = tab => { STATE.authTab=tab; STATE.error=''; STATE.success=''; render(); };
+
+  // fields
+  const nameField = t==='register' ? makeField('Full Name','text','Jane Doe',
+    v=>{ STATE.form_name=v; }) : null;
+  const emailField = makeField('Email','email','you@example.com',
+    v=>{ STATE.form_email=v; });
+  const passField = makeField('Password', STATE.showPass?'text':'password','••••••••',
+    v=>{ STATE.form_pass=v; },
+    el('button',{class:'peek-btn', onClick:()=>{ STATE.showPass=!STATE.showPass; render(); }},
+      STATE.showPass?'HIDE':'SHOW')
+  );
+  const confirmField = t==='register' ? makeField('Confirm Password',
+    STATE.showPass?'text':'password','Repeat password',
+    v=>{ STATE.form_confirm=v; }) : null;
+
+  const flashEl = STATE.error
+    ? el('div',{class:'flash err'}, STATE.error)
+    : STATE.success ? el('div',{class:'flash ok'}, STATE.success) : null;
+
+  const submitBtn = el('button',{class:'cta', onClick: t==='login'?doLogin:doRegister},
+    t==='login' ? 'Sign In' : 'Create Account');
+
+  const altText = t==='login'
+    ? el('p',{class:'alt-link'}, "No account? ", el('a',{onClick:()=>switchTab('register')},'Create one'))
+    : el('p',{class:'alt-link'}, "Have an account? ", el('a',{onClick:()=>switchTab('login')},'Sign in'));
+
+  const fields = [nameField, emailField, passField, confirmField].filter(Boolean);
+
+  const panel = el('div',{class:'auth-panel'},
+    el('div',{class:'brand'},
+      el('div',{class:'brand-name'},'Rupee',el('span',null,'Save')),
+      el('div',{class:'brand-tag'},'Daily Savings Tracker — ₹')
+    ),
+    el('div',{class:'tab-row'},
+      el('button',{class:`tab ${t==='login'?'on':'off'}`, onClick:()=>switchTab('login')},'Sign In'),
+      el('button',{class:`tab ${t==='register'?'on':'off'}`, onClick:()=>switchTab('register')},'Register')
+    ),
+    flashEl,
+    ...fields,
+    submitBtn,
+    altText
+  );
+
+  html(app, el('div',{class:'auth-screen'}, panel));
+
+  // restore values
+  if (STATE.form_email) {
+    const inputs = app.querySelectorAll('input');
+    inputs.forEach(inp => {
+      if (inp.type==='email') inp.value = STATE.form_email||'';
+      if (inp.type==='password'||inp.type==='text') {
+        if (inp.placeholder==='••••••••' || inp.placeholder==='Min. 6 characters') inp.value = STATE.form_pass||'';
+        if (inp.placeholder==='Repeat password') inp.value = STATE.form_confirm||'';
+        if (inp.placeholder==='Jane Doe') inp.value = STATE.form_name||'';
+      }
+    });
+  }
+}
+
+function makeField(label, type, placeholder, onInput, extra=null) {
+  const inp = el('input',{type, placeholder});
+  inp.addEventListener('input', e => onInput(e.target.value));
+  return el('div',{class:'field'},
+    el('div',{class:'field-head'},
+      el('label',{},label),
+      extra
+    ),
+    inp
+  );
+}
+
+async function doLogin() {
+  STATE.error=''; STATE.success='';
+  const email = (STATE.form_email||'').toLowerCase().trim();
+  const pass  = STATE.form_pass||'';
+  if (!email||!pass) { STATE.error='Email and password are required.'; render(); return; }
+  const user = STATE.users[email];
+  if (!user||user.password!==pass) { STATE.error='Invalid email or password.'; render(); return; }
+  const now = new Date().toISOString();
+  STATE.users[email] = {...user, lastLogin:now, loginCount:(user.loginCount||0)+1};
+  await persist.set(USERS_KEY, STATE.users);
+  STATE.session = {email, name:user.name};
+  await persist.set(SESSION_KEY, STATE.session);
+  STATE.form_email=STATE.form_pass=STATE.form_name=STATE.form_confirm='';
+  STATE.error=''; STATE.success='';
+  // load rows
+  const saved = await persist.get(rowsKey(email));
+  STATE.rows = (saved&&saved.length>0) ? saved : JSON.parse(JSON.stringify(DEFAULT_ROWS));
+  STATE.view = 'dashboard';
+  render();
+}
+
+async function doRegister() {
+  STATE.error=''; STATE.success='';
+  const name    = (STATE.form_name||'').trim();
+  const email   = (STATE.form_email||'').toLowerCase().trim();
+  const pass    = STATE.form_pass||'';
+  const confirm = STATE.form_confirm||'';
+  if (!name||!email||!pass)               { STATE.error='All fields are required.'; render(); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { STATE.error='Enter a valid email address.'; render(); return; }
+  if (pass.length<6)                      { STATE.error='Password must be at least 6 characters.'; render(); return; }
+  if (pass!==confirm)                     { STATE.error='Passwords do not match.'; render(); return; }
+  if (STATE.users[email])                 { STATE.error='An account already exists with this email.'; render(); return; }
+  const now = new Date().toISOString();
+  STATE.users[email] = {name, email, password:pass, createdAt:now, lastLogin:null, loginCount:0};
+  await persist.set(USERS_KEY, STATE.users);
+  STATE.form_email=STATE.form_pass=STATE.form_name=STATE.form_confirm='';
+  STATE.success='Account created! You can now sign in.';
+  STATE.authTab='login';
+  render();
+}
+
+/* ═══════════════════════════════════════════
+   DASHBOARD VIEW
+═══════════════════════════════════════════ */
+function renderDashboard() {
+  const rows    = STATE.rows || [];
+  const amounts = rows.map(r=>Number(r.amount)||0);
+  const total   = amounts.reduce((a,b)=>a+b,0);
+  const avg     = amounts.length ? total/amounts.length : 0;
+  const best    = Math.max(...amounts,0);
+  const name    = STATE.session?.name || '';
+  const now     = new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  // destroy old charts
+  if(STATE.chartBar)  { STATE.chartBar.destroy();  STATE.chartBar=null; }
+  if(STATE.chartLine) { STATE.chartLine.destroy(); STATE.chartLine=null; }
+
+  // topbar
+  const topbar = el('div',{class:'topbar'},
+    el('div',{class:'topbar-brand'},
+      el('div',{class:'topbar-logo'},'Rupee',el('span',null,'Save')),
+      el('div',{class:'topbar-sep'}),
+      el('div',{class:'topbar-user'}, name)
+    ),
+    el('div',{class:'topbar-actions'},
+      el('span',{class:`saved-badge${STATE.savedFlash?' show':''}`},'saved'),
+      el('button',{class:'signout-btn', onClick:doSignout},'Sign Out')
+    )
+  );
+
+  // metrics
+  const metrics = el('div',{class:'metrics'},
+    el('div',{class:'metric'},
+      el('div',{class:'metric-lbl'},'Total Saved'),
+      el('div',{class:'metric-val c-gold'}, fmt(total)),
+      el('div',{class:'metric-sub'}, `across ${rows.length} day${rows.length!==1?'s':''}`)
+    ),
+    el('div',{class:'metric'},
+      el('div',{class:'metric-lbl'},'Daily Average'),
+      el('div',{class:'metric-val'}, fmt(avg)),
+      el('div',{class:'metric-sub'},'per day')
+    ),
+    el('div',{class:'metric'},
+      el('div',{class:'metric-lbl'},'Best Day'),
+      el('div',{class:'metric-val c-green'}, fmt(best)),
+      el('div',{class:'metric-sub'}, rows.length ? rows[amounts.indexOf(best)]?.label||'—' : '—')
+    )
+  );
+
+  // entry rows
+  const entryRows = rows.map((r,i) => {
+    const lInp = el('input',{type:'text', placeholder:'e.g. Monday'});
+    lInp.value = r.label;
+    lInp.addEventListener('input', e => { STATE.rows[i].label=e.target.value; scheduleSave(); updateMetrics(); });
+
+    const aInp = el('input',{type:'number', min:'0', step:'1', placeholder:'0'});
+    aInp.value = r.amount;
+    aInp.addEventListener('input', e => { STATE.rows[i].amount=parseFloat(e.target.value)||0; scheduleSave(); updateMetrics(); });
+
+    const delBtn = el('button',{class:'del-btn'}, '×');
+    delBtn.addEventListener('click', ()=>{
+      if(STATE.rows.length>1){ STATE.rows.splice(i,1); scheduleSave(); render(); }
+    });
+
+    return el('div',{class:'entry-row'}, lInp, aInp, delBtn);
+  });
+
+  const addBtn = el('button',{class:'add-btn'}, '+ Add another day');
+  addBtn.addEventListener('click', ()=>{
+    STATE.rows.push({label:'Day '+(STATE.rows.length+1),amount:0});
+    scheduleSave(); render();
+  });
+
+  const entrySection = el('div',{class:'entry-wrap'},
+    el('div',{class:'entry-thead'},
+      el('span',{},'Day / Label'),
+      el('span',{},'Amount (₹)'),
+      el('span',{})
+    ),
+    ...entryRows,
+    addBtn
+  );
+
+  // chart canvases
+  const barCanvas  = el('canvas',{id:'barCanvas'});
+  const lineCanvas = el('canvas',{id:'lineCanvas'});
+
+  const chartsSection = el('div',{class:'chart-grid'},
+    el('div',{class:'chart-card'},
+      el('div',{class:'chart-card-title'},'Daily Savings'),
+      el('div',{class:'chart-card-sub'},'Amount saved each day — best day highlighted in gold'),
+      el('div',{class:'chart-wrap'}, barCanvas)
+    ),
+    el('div',{class:'chart-card'},
+      el('div',{class:'chart-card-title'},'Cumulative Growth'),
+      el('div',{class:'chart-card-sub'},'Running total of all your savings'),
+      el('div',{class:'chart-wrap'}, lineCanvas)
+    )
+  );
+
+  const main = el('div',{class:'main'},
+    el('div',{class:'hero-row'},
+      el('div',{class:'hero-greeting'},'Good day, ',el('em',{},name.split(' ')[0])),
+      el('div',{class:'hero-date'}, now)
+    ),
+    metrics,
+    el('div',{class:'sec-hd'}, el('span',{class:'sec-hd-label'},'Savings Data'), el('div',{class:'sec-hd-line'})),
+    entrySection,
+    el('div',{class:'sec-hd'}, el('span',{class:'sec-hd-label'},'Visualisation'), el('div',{class:'sec-hd-line'})),
+    chartsSection
+  );
+
+  const footer = el('div',{class:'footer'},
+    'RupeeSave — Daily Savings Tracker &nbsp;·&nbsp; ₹ Indian Rupee &nbsp;·&nbsp; Changes saved automatically'
+  );
+
+  html(app,
+    el('div',{class:'dashboard'}, topbar, main, footer)
+  );
+
+  // init charts after DOM is ready
+  requestAnimationFrame(() => buildCharts(rows));
+}
+
+function buildCharts(rows) {
+  const labels  = rows.map(r=>r.label);
+  const amounts = rows.map(r=>Number(r.amount)||0);
+  const cum     = amounts.reduce((a,v,i)=>{ a.push((a[i-1]||0)+v); return a; },[]);
+  const best    = Math.max(...amounts,0);
+  const grid    = 'rgba(201,169,110,0.08)';
+  const tick    = 'rgba(240,234,216,0.38)';
+  const tf      = {size:11, family:"'DM Mono',monospace"};
+  const tt      = {backgroundColor:'#0f0f16', titleColor:'#f0ead8', borderColor:'rgba(201,169,110,0.2)', borderWidth:1, padding:10};
+
+  const barEl  = document.getElementById('barCanvas');
+  const lineEl = document.getElementById('lineCanvas');
+  if (!barEl||!lineEl) return;
+
+  STATE.chartBar = new Chart(barEl, {
+    type:'bar',
+    data:{ labels, datasets:[{ data:amounts,
+      backgroundColor: amounts.map(v=>v===best?'#c9a96e':'rgba(201,169,110,0.22)'),
+      hoverBackgroundColor: amounts.map(v=>v===best?'#e8c98a':'rgba(201,169,110,0.4)'),
+      borderRadius:4, borderSkipped:false }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{...tt, callbacks:{label:ctx=>fmt(ctx.parsed.y)}} },
+      scales:{
+        x:{ ticks:{autoSkip:false,maxRotation:40,color:tick,font:tf}, grid:{display:false}, border:{color:'rgba(201,169,110,0.1)'} },
+        y:{ beginAtZero:true, ticks:{color:tick,font:tf,callback:v=>'₹'+v.toLocaleString('en-IN')}, grid:{color:grid}, border:{color:'rgba(201,169,110,0.1)'} }
+      }
+    }
+  });
+
+  STATE.chartLine = new Chart(lineEl, {
+    type:'line',
+    data:{ labels, datasets:[{ data:cum,
+      borderColor:'#5db897', backgroundColor:'rgba(93,184,151,0.07)',
+      pointBackgroundColor:'#5db897', pointBorderColor:'#09090e',
+      pointBorderWidth:2, pointRadius:5, pointHoverRadius:7,
+      fill:true, tension:0.42 }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{...tt, bodyColor:'#5db897', callbacks:{label:ctx=>'Total: '+fmt(ctx.parsed.y)}} },
+      scales:{
+        x:{ ticks:{autoSkip:false,maxRotation:40,color:tick,font:tf}, grid:{display:false}, border:{color:'rgba(201,169,110,0.1)'} },
+        y:{ beginAtZero:true, ticks:{color:tick,font:tf,callback:v=>'₹'+v.toLocaleString('en-IN')}, grid:{color:grid}, border:{color:'rgba(201,169,110,0.1)'} }
+      }
+    }
+  });
+}
+
+function updateMetrics() {
+  // lightweight update without full re-render
+  const amounts = (STATE.rows||[]).map(r=>Number(r.amount)||0);
+  const total   = amounts.reduce((a,b)=>a+b,0);
+  const avg     = amounts.length ? total/amounts.length : 0;
+  const best    = Math.max(...amounts,0);
+  const vals    = app.querySelectorAll('.metric-val');
+  if (vals[0]) vals[0].textContent = fmt(total);
+  if (vals[1]) vals[1].textContent = fmt(avg);
+  if (vals[2]) vals[2].textContent = fmt(best);
+  // update charts
+  if (STATE.chartBar && STATE.chartLine) {
+    const labels  = (STATE.rows||[]).map(r=>r.label);
+    const cum     = amounts.reduce((a,v,i)=>{ a.push((a[i-1]||0)+v); return a; },[]);
+    STATE.chartBar.data.labels  = labels;
+    STATE.chartBar.data.datasets[0].data  = amounts;
+    STATE.chartBar.data.datasets[0].backgroundColor = amounts.map(v=>v===best?'#c9a96e':'rgba(201,169,110,0.22)');
+    STATE.chartBar.update('none');
+    STATE.chartLine.data.labels = labels;
+    STATE.chartLine.data.datasets[0].data = cum;
+    STATE.chartLine.update('none');
+  }
+}
+
+let _saveTimer = null;
+function scheduleSave() {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    if (!STATE.session||!STATE.rows) return;
+    await persist.set(rowsKey(STATE.session.email), STATE.rows);
+    // flash saved badge
+    const badge = app.querySelector('.saved-badge');
+    if (badge) { badge.classList.add('show'); setTimeout(()=>badge.classList.remove('show'),1800); }
+  }, 600);
+}
+
+async function doSignout() {
+  if(STATE.chartBar)  { STATE.chartBar.destroy();  STATE.chartBar=null; }
+  if(STATE.chartLine) { STATE.chartLine.destroy(); STATE.chartLine=null; }
+  await persist.del(SESSION_KEY);
+  STATE.session=null; STATE.rows=null;
+  STATE.view='auth'; STATE.authTab='login';
+  render();
+}
+
+/* ═══════════════════════════════════════════
+   BOOT
+═══════════════════════════════════════════ */
+(async () => {
+  STATE.users   = await persist.get(USERS_KEY)   || {};
+  STATE.session = await persist.get(SESSION_KEY) || null;
+
+  if (STATE.session) {
+    const saved = await persist.get(rowsKey(STATE.session.email));
+    STATE.rows = (saved && saved.length>0) ? saved : JSON.parse(JSON.stringify(DEFAULT_ROWS));
+    STATE.view = 'dashboard';
+  } else {
+    STATE.view = 'auth';
+  }
+  render();
+})();
+</script>
+</body>
+</html>
